@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Image Downloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .input {
+            margin-right: 17px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .logoutbtn {
+            margin-bottom: 10px;
+            display: grid;
+            justify-content: end;
+        }
+
+        #imagePreview {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .image-item {
+            width: 150px;
+            text-align: center;
+        }
+
+        .image-item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        #progressBar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 20px;
+            display: none;
+        }
+
+        #progressBarFill {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease-in-out;
+        }
+
+        #message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Telegram Image Downloader</h1>
+        <div id="loginForm">
+            <h2>Login dengan Telegram</h2>
+            <div class="input-group">
+                <label for="phoneNumber">Nomor Telepon:</label>
+                <input type="text" id="phoneNumber" placeholder="+62XXXXXXXXXX">
+            </div>
+            <button>Kirim Kode</button>
+        </div>
+
+        <div id="verifyForm" style="display: none;">
+            <h2>Verifikasi Kode</h2>
+            <div class="input-group">
+                <label for="code">Kode Verifikasi:</label>
+                <input type="text" id="code">
+            </div>
+            <button>Verifikasi</button>
+        </div>
+
+        <div id="logoutButton" style="display: none;">
+            <p>Selamat datang, <span id="phoneNumberDisplay"></span>!</p>
+            <button class="logoutbtn">Logout</button>
+        </div>
+
+        <div id="mainContent" style="display: none;">
+            <div class="input">
+                <div class="input-group">
+                    <label for="groupLink">Link Grup Telegram:</label>
+                    <input type="text" id="groupLink" placeholder="https://t.me/namagrup">
+                </div>
+                <div class="input-group">
+                    <label for="startDate">Tanggal Mulai:</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="input-group">
+                    <label for="endDate">Tanggal Akhir:</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+            <button id="downloadButton">Unduh Gambar</button>
+        </div>
+        <div id="progressBar">
+            <div id="progressBarFill"></div>
+        </div>
+        <div id="message"></div>
+        <div id="imagePreview"></div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        const downloadButton = document.getElementById('downloadButton');
+        downloadButton.addEventListener('click', startDownload);
+
+        async function startDownload() {
+            const groupLink = document.getElementById('groupLink').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const messageDiv = document.getElementById('message');
+            const imagePreview = document.getElementById('imagePreview');
+            const progressBar = document.getElementById('progressBar');
+            const progressBarFill = document.getElementById('progressBarFill');
+
+            if (!groupLink || !startDate || !endDate) {
+                messageDiv.textContent = 'Mohon isi semua field.';
+                messageDiv.className = 'error';
+                return;
+            }
+
+            imagePreview.innerHTML = '';
+            messageDiv.textContent = '';
+            messageDiv.className = '';
+            progressBar.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            downloadButton.disabled = true;
+            downloadButton.textContent = 'Sedang mengunduh...';
+
+            let downloadedImages = 0;
+            let groupName = 'Unknown Group';
+
+            try {
+                const response = await fetch('http://localhost:5000/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: "include",
+                    body: JSON.stringify({ group_link: groupLink, start_date: startDate, end_date: endDate }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    let newlineIndex;
+                    while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                        const line = buffer.slice(0, newlineIndex);
+                        buffer = buffer.slice(newlineIndex + 1);
+
+                        // Hapus prefix "data: " jika ada
+                        const jsonStr = line.startsWith('data: ') ? line.slice(5) : line;
+
+                        try {
+                            const data = JSON.parse(jsonStr);
+
+                            switch (data.type) {
+                                case 'group_info':
+                                    groupName = data.name;
+                                    messageDiv.className = 'info';
+                                    break;
+                                case 'progress':
+                                    progressBarFill.style.width = `${data.percent}%`;
+                                    break;
+                                case 'image':
+                                    const imageItem = document.createElement('div');
+                                    imageItem.className = 'image-item';
+
+                                    const img = document.createElement('img');
+                                    img.src = `data:image/jpeg;base64,${data.data}`;
+                                    img.alt = `Gambar ${data.date}`;
+
+                                    const date = document.createElement('p');
+                                    date.textContent = new Date(data.date).toLocaleDateString();
+
+                                    imageItem.appendChild(img);
+                                    imageItem.appendChild(date);
+                                    imagePreview.appendChild(imageItem);
+
+                                    downloadedImages++;
+                                    messageDiv.textContent = `${downloadedImages} gambar telah diunduh.`;
+                                    messageDiv.className = 'info';
+                                    break;
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing JSON:', parseError, 'Raw data:', jsonStr);
+                        }
+                    }
+                }
+
+                progressBar.style.display = 'none';
+                messageDiv.textContent = `Unduhan selesai! ${downloadedImages} gambar berhasil diunduh dari grup ${groupName} pada rentang tanggal ${startDate} - ${endDate}`;
+                messageDiv.className = 'success';
+
+            } catch (error) {
+                progressBar.style.display = 'none';
+                messageDiv.textContent = `Error: ${error.message}`;
+                messageDiv.className = 'error';
+            } finally {
+                downloadButton.disabled = false;
+                downloadButton.textContent = 'Unduh Gambar';
+            }
+        }
+    </script>
+</body>
+
+</html>
