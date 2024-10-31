@@ -30,8 +30,8 @@ app.secret_key = secrets.token_hex(16)
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
     minutes=100)
 
-API_ID = '23786363'
-API_HASH = '099402880432b069398b080a3a6ba0f8'
+API_ID = 'Input your API_ID'
+API_HASH = 'Input yout API_HASH'
 
 client = TelegramClient('anon', API_ID, API_HASH)
 
